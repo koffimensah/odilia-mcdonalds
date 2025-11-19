@@ -1,0 +1,261 @@
+# Docker Compose version (defines the syntax version we're using)
+# version: '3.8'
+
+# Services section: defines all 12 microservices
+services:
+
+  # ==========================================
+  # SERVICE 1: Frontend Web Interface
+  # ==========================================
+  yelb-ui:
+    image: mreferre/yelb-ui:0.7
+    container_name: mcdonalds-yelb-ui
+    ports:
+      - "80:80"
+    networks:
+      - odilia-network
+    depends_on:
+      - yelb-appserver
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 2: Application Server (API)
+  # ==========================================
+  yelb-appserver:
+    image: mreferre/yelb-appserver:0.5
+    container_name: mcdonalds-yelb-appserver
+    networks:
+      - odilia-network
+    depends_on:
+      - redis-server
+      - yelb-db
+    environment:
+      - REDIS_SERVER=redis-server
+      - DB_SERVER=yelb-db
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 3: Redis Master (Session Cache)
+  # ==========================================
+  redis-server:
+    image: redis:4.0.2
+    container_name: mcdonalds-redis-server
+    # Command: start Redis with inline configuration
+    command: >
+      redis-server
+      --protected-mode no
+      --port 6379
+      --requirepass a-very-complex-password-here
+      --masterauth a-very-complex-password-here
+    volumes:
+      - redis-server-data:/data
+    networks:
+      - odilia-network
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 4: Redis Replica 1 (Standby Cache)
+  # ==========================================
+  odilia-redis01:
+    image: redis:4.0.2
+    container_name: mcdonalds-odilia-redis01
+    # Command: start as replica (slave) of redis-server
+    command: >
+      redis-server
+      --protected-mode no
+      --port 6379
+      --slaveof redis-server 6379
+      --requirepass a-very-complex-password-here
+      --masterauth a-very-complex-password-here
+    volumes:
+      - odilia-redis01-data:/data
+    networks:
+      - odilia-network
+    depends_on:
+      - redis-server
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 5: Redis Replica 2 (Standby Cache)
+  # ==========================================
+  odilia-redis02:
+    image: redis:4.0.2
+    container_name: mcdonalds-odilia-redis02
+    # Command: start as replica (slave) of redis-server
+    command: >
+      redis-server
+      --protected-mode no
+      --port 6379
+      --slaveof redis-server 6379
+      --requirepass a-very-complex-password-here
+      --masterauth a-very-complex-password-here
+    volumes:
+      - odilia-redis02-data:/data
+    networks:
+      - odilia-network
+    depends_on:
+      - redis-server
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 6: Redis Sentinel 1 (Failover Manager)
+  # ==========================================
+  odilia-redis-sentinel01:
+    image: redis:4.0.2
+    container_name: mcdonalds-redis-sentinel01
+    # Create sentinel config and start sentinel
+    # Using sh instead of bash (more compatible with redis image)
+    command: >
+      sh -c "mkdir -p /data &&
+      echo 'port 5000' > /data/sentinel.conf &&
+      echo 'dir /data' >> /data/sentinel.conf &&
+      echo 'sentinel monitor mymaster redis-server 6379 2' >> /data/sentinel.conf &&
+      echo 'sentinel auth-pass mymaster a-very-complex-password-here' >> /data/sentinel.conf &&
+      echo 'sentinel down-after-milliseconds mymaster 5000' >> /data/sentinel.conf &&
+      echo 'sentinel parallel-syncs mymaster 1' >> /data/sentinel.conf &&
+      echo 'sentinel failover-timeout mymaster 60000' >> /data/sentinel.conf &&
+      cat /data/sentinel.conf &&
+      redis-sentinel /data/sentinel.conf"
+    networks:
+      - odilia-network
+    depends_on:
+      - redis-server
+      - odilia-redis01
+      - odilia-redis02
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 7: Redis Sentinel 2 (Failover Manager)
+  # ==========================================
+  odilia-redis-sentinel02:
+    image: redis:4.0.2
+    container_name: mcdonalds-redis-sentinel02
+    # Same configuration as sentinel01
+    command: >
+      sh -c "mkdir -p /data &&
+      echo 'port 5000' > /data/sentinel.conf &&
+      echo 'dir /data' >> /data/sentinel.conf &&
+      echo 'sentinel monitor mymaster redis-server 6379 2' >> /data/sentinel.conf &&
+      echo 'sentinel auth-pass mymaster a-very-complex-password-here' >> /data/sentinel.conf &&
+      echo 'sentinel down-after-milliseconds mymaster 5000' >> /data/sentinel.conf &&
+      echo 'sentinel parallel-syncs mymaster 1' >> /data/sentinel.conf &&
+      echo 'sentinel failover-timeout mymaster 60000' >> /data/sentinel.conf &&
+      cat /data/sentinel.conf &&
+      redis-sentinel /data/sentinel.conf"
+    networks:
+      - odilia-network
+    depends_on:
+      - redis-server
+      - odilia-redis01
+      - odilia-redis02
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 8: Redis Sentinel 3 (Failover Manager)
+  # ==========================================
+  odilia-redis-sentinel03:
+    image: redis:4.0.2
+    container_name: mcdonalds-redis-sentinel03
+    # Same configuration as sentinel01 and sentinel02
+    command: >
+      sh -c "mkdir -p /data &&
+      echo 'port 5000' > /data/sentinel.conf &&
+      echo 'dir /data' >> /data/sentinel.conf &&
+      echo 'sentinel monitor mymaster redis-server 6379 2' >> /data/sentinel.conf &&
+      echo 'sentinel auth-pass mymaster a-very-complex-password-here' >> /data/sentinel.conf &&
+      echo 'sentinel down-after-milliseconds mymaster 5000' >> /data/sentinel.conf &&
+      echo 'sentinel parallel-syncs mymaster 1' >> /data/sentinel.conf &&
+      echo 'sentinel failover-timeout mymaster 60000' >> /data/sentinel.conf &&
+      cat /data/sentinel.conf &&
+      redis-sentinel /data/sentinel.conf"
+    networks:
+      - odilia-network
+    depends_on:
+      - redis-server
+      - odilia-redis01
+      - odilia-redis02
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 9: PostgreSQL Database (Primary)
+  # ==========================================
+  yelb-db:
+    image: mreferre/yelb-db:0.5
+    container_name: mcdonalds-yelb-db
+    volumes:
+      - yelb-db-data:/var/lib/postgresql/data
+    networks:
+      - odilia-network
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 10: Database Replica 1
+  # ==========================================
+  odilia-db-replication01:
+    image: mreferre/yelb-db:0.5
+    container_name: mcdonalds-db-replication01
+    volumes:
+      - db-replication01-data:/var/lib/postgresql/data
+    networks:
+      - odilia-network
+    depends_on:
+      - yelb-db
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 11: Database Replica 2
+  # ==========================================
+  odilia-db-replication02:
+    image: mreferre/yelb-db:0.5
+    container_name: mcdonalds-db-replication02
+    volumes:
+      - db-replication02-data:/var/lib/postgresql/data
+    networks:
+      - odilia-network
+    depends_on:
+      - yelb-db
+    restart: unless-stopped
+
+  # ==========================================
+  # SERVICE 12: Database Replica 3
+  # ==========================================
+  odilia-db-replication03:
+    image: mreferre/yelb-db:0.5
+    container_name: mcdonalds-db-replication03
+    volumes:
+      - db-replication03-data:/var/lib/postgresql/data
+    networks:
+      - odilia-network
+    depends_on:
+      - yelb-db
+    restart: unless-stopped
+
+# ==========================================
+# NETWORKS SECTION
+# ==========================================
+networks:
+  odilia-network:
+    driver: bridge
+    name: mcdonalds-odilia-network
+
+# ==========================================
+# VOLUMES SECTION
+# ==========================================
+volumes:
+  # Redis data volumes
+  redis-server-data:
+    driver: local
+  odilia-redis01-data:
+    driver: local
+  odilia-redis02-data:
+    driver: local
+  
+  # Database data volumes
+  yelb-db-data:
+    driver: local
+  db-replication01-data:
+    driver: local
+  db-replication02-data:
+    driver: local
+  db-replication03-data:
+    driver: local

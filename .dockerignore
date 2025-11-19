@@ -1,0 +1,60 @@
+# ==================================
+# Odilia Application - .dockerignore
+# ==================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Backups
+backups/
+*.backup
+*.bak
+*.dump
+*.tar.gz
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (if any)
+node_modules/
+
+# Environment files
+.env
+.env.*
+
+# Docker
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+
+# Scripts (not needed in image)
+scripts/*.sh
+*.sh
+
+# Test files
+tests/
+test/
+*.test.*
