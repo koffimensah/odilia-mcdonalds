@@ -1,0 +1,13 @@
+name: deploy odilia-msdonalds with docker compose
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: km    #(label)
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install deps
+        run: sudo apt install docker.io -y
+      - name: Run tests
+        run: docker --version
