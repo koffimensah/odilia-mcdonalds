@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   test:
-    runs-on: km    # (your self-hosted runner label)
+    runs-on: self-hosted  # (your self-hosted runner label)
 
     steps:
       # 1. Checkout source code
