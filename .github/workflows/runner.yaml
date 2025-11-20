@@ -4,10 +4,23 @@ on: [push]
 
 jobs:
   test:
-    runs-on: km    #(label)
+    runs-on: km    # (your self-hosted runner label)
+
     steps:
+      # 1. Checkout source code
       - uses: actions/checkout@v3
-      - name: Install deps
-        run: sudo apt install docker.io -y
+
+      # 2. Install Docker (if not already installed on your runner)
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install docker.io -y
+
+      # 3. Login to DockerHub using token
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 4. Check Docker version (test step)
       - name: Run tests
         run: docker --version
