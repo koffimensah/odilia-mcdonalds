@@ -1,24 +1,32 @@
-name: deploy odilia-msdonalds with docker compose
+name: CI/CD Pipeline - odilia-msdonalds
 
-on: [push]
+on:
+  push:
+    branches: [main]
 
 jobs:
-  test:
+  deploy:
     runs-on: self-hosted
 
     steps:
-      - uses: actions/checkout@v3
+      # 1️⃣ Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # needed for SonarQube history
 
+      # 2️⃣ Install dependencies
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y docker.io unzip
 
-      - name: Login to DockerHub
+      # 3️⃣ Login to DockerHub
+      - name: DockerHub Login
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 🔍 SonarQube Scan
+      # 4️⃣ Run SonarQube scan
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
@@ -26,5 +34,31 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_SCANNER_OPTS: "-X"
 
-      - name: Run tests
-        run: docker --version
+      # 5️⃣ Check Quality Gate
+      - name: SonarQube Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # 6️⃣ Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t odilia-msdonalds:latest .
+
+      # 7️⃣ Push Docker image to DockerHub
+      - name: Push Docker image
+        run: |
+          docker tag odilia-msdonalds:latest ${{ secrets.DOCKERHUB_USERNAME }}/odilia-msdonalds:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/odilia-msdonalds:latest
+
+      # 8️⃣ Deploy using Docker Compose
+      - name: Deploy with Docker Compose
+        run: |
+          docker-compose pull
+          docker-compose up -d
+
+      # 9️⃣ Optional: Smoke test
+      - name: Smoke Test
+        run: curl -f http://localhost:8080/health || exit 1
