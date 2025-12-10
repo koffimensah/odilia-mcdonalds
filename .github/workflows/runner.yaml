@@ -9,15 +9,17 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # 1️⃣ Checkout code
-      - name: Checkout repository
+      # 1️⃣ Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0  # needed for SonarQube history
 
       # 2️⃣ Install dependencies
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y docker.io unzip curl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io unzip curl
 
       # 3️⃣ DockerHub login
       - name: DockerHub Login
@@ -26,41 +28,33 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 4️⃣ Run SonarQube scan
+      # 4️⃣ SonarQube Scan with Quality Gate wait
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
         with:
           projectBaseDir: .
+          waitForQualityGate: true
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_SCANNER_OPTS: "-X"
 
-      # 5️⃣ SonarQube Quality Gate check
-      - name: SonarQube Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1
-        timeout-minutes: 5
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      # 6️⃣ Build Docker image
+      # 5️⃣ Build Docker image
       - name: Build Docker image
-        run: |
-          docker build -t odilia-msdonalds:latest .
+        run: docker build -t odilia-msdonalds:latest .
 
-      # 7️⃣ Push Docker image to DockerHub
+      # 6️⃣ Push Docker image to DockerHub
       - name: Push Docker image
         run: |
           docker tag odilia-msdonalds:latest ${{ secrets.DOCKERHUB_USERNAME }}/odilia-msdonalds:latest
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/odilia-msdonalds:latest
 
-      # 8️⃣ Deploy using Docker Compose
+      # 7️⃣ Deploy using Docker Compose
       - name: Deploy with Docker Compose
         run: |
           docker-compose pull
           docker-compose up -d
 
-      # 9️⃣ Optional: Smoke test
+      # 8️⃣ Optional: Smoke Test
       - name: Smoke Test
         run: curl -f http://localhost:8080/health || exit 1

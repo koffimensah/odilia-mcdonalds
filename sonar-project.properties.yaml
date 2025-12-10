@@ -1,4 +1,3 @@
-# sonar-project.properties
 sonar.projectKey=odilia-msdonalds
 sonar.projectName=odilia-msdonalds
 sonar.sources=.
