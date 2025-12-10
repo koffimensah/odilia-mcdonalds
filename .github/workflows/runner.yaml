@@ -9,28 +9,21 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Install docker
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install docker.io -y
+        run: sudo apt-get update && sudo apt-get install -y docker.io unzip
 
-      # Install unzip (required for sonar-scanner)
-      - name: Install unzip
-        run: sudo apt-get update && sudo apt-get install -y unzip
-
-      # Login to DockerHub
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Run SonarQube Scan
+      # 🔍 SonarQube Scan
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
-        with:
-          host-url: ${{ secrets.SONAR_HOST_URL }}
-          token: ${{ secrets.SONAR_TOKEN }}
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      # Example test step
       - name: Run tests
         run: docker --version
