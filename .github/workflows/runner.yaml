@@ -13,11 +13,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Install dependencies
+      # 2️⃣ Install dependencies and check Docker Compose plugin
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y docker.io unzip curl
+          docker --version
+          docker compose version || true
 
       # 3️⃣ DockerHub login
       - name: DockerHub Login
@@ -43,9 +45,9 @@ jobs:
           docker pull mreferre/yelb-ui:0.7
           docker pull mreferre/yelb-appserver:0.5
 
-      # 6️⃣ Deploy using Docker Compose
+      # 6️⃣ Deploy using Docker Compose (plugin style)
       - name: Deploy with Docker Compose
-        run: docker-compose up -d
+        run: docker compose up -d
 
       # 7️⃣ Optional: Smoke Test
       - name: Smoke Test
