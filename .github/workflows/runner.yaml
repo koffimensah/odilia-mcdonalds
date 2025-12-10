@@ -12,8 +12,6 @@ jobs:
       # 1️⃣ Checkout repository
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0  # needed for SonarQube history
 
       # 2️⃣ Install dependencies
       - name: Install dependencies
@@ -39,22 +37,17 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_SCANNER_OPTS: "-X"
 
-      # 5️⃣ Build Docker image
-      - name: Build Docker image
-        run: docker build -t odilia-msdonalds:latest .
-
-      # 6️⃣ Push Docker image to DockerHub
-      - name: Push Docker image
+      # 5️⃣ Pull only custom Docker images
+      - name: Pull Custom Docker Images
         run: |
-          docker tag odilia-msdonalds:latest ${{ secrets.DOCKERHUB_USERNAME }}/odilia-msdonalds:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/odilia-msdonalds:latest
+          docker pull mreferre/yelb-ui:0.7
+          docker pull mreferre/yelb-appserver:0.5
 
-      # 7️⃣ Deploy using Docker Compose
+      # 6️⃣ Deploy using Docker Compose
       - name: Deploy with Docker Compose
-        run: |
-          docker-compose pull
-          docker-compose up -d
+        run: docker-compose up -d
 
-      # 8️⃣ Optional: Smoke Test
+      # 7️⃣ Optional: Smoke Test
       - name: Smoke Test
-        run: curl -f http://localhost:8080/health || exit 1
+        run: curl -f http://localhost/ || exit 1
+
