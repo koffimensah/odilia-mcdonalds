@@ -17,9 +17,9 @@ jobs:
 
       # 2️⃣ Install dependencies
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y docker.io unzip
+        run: sudo apt-get update && sudo apt-get install -y docker.io unzip curl
 
-      # 3️⃣ Login to DockerHub
+      # 3️⃣ DockerHub login
       - name: DockerHub Login
         uses: docker/login-action@v2
         with:
@@ -29,12 +29,14 @@ jobs:
       # 4️⃣ Run SonarQube scan
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          projectBaseDir: .
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_SCANNER_OPTS: "-X"
 
-      # 5️⃣ Check Quality Gate
+      # 5️⃣ SonarQube Quality Gate check
       - name: SonarQube Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
