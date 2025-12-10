@@ -39,17 +39,16 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_SCANNER_OPTS: "-X"
 
-      # 5️⃣ Pull only custom Docker images
+      # 5️⃣ Pull only custom Docker images (your services)
       - name: Pull Custom Docker Images
         run: |
           docker pull mreferre/yelb-ui:0.7
           docker pull mreferre/yelb-appserver:0.5
 
-      # 6️⃣ Deploy using Docker Compose (plugin style)
+      # 6️⃣ Deploy using Docker Compose plugin
       - name: Deploy with Docker Compose
-        run: docker compose up -d
+        run: docker compose up --detach
 
       # 7️⃣ Optional: Smoke Test
       - name: Smoke Test
         run: curl -f http://localhost/ || exit 1
-
