@@ -1,0 +1,5 @@
+# sonar-project.properties
+sonar.projectKey=my-project
+sonar.projectName=my-project
+sonar.sources=.
+sonar.host.url=http://18.227.24.102:9000

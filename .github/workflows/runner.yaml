@@ -4,23 +4,43 @@ on: [push]
 
 jobs:
   test:
-    runs-on: self-hosted  # (your self-hosted runner label)
+    runs-on: self-hosted  # your self-hosted runner
 
     steps:
       # 1. Checkout source code
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # required for SonarQube
 
-      # 2. Install Docker (if not already installed on your runner)
+      # -------------------------
+      # 2. SonarQube Scan Step
+      # -------------------------
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: "http://18.227.24.102:9000"
+
+      # (Optional) Block deployment if Quality Gate fails
+      # - name: SonarQube Quality Gate
+      #   uses: SonarSource/sonarqube-quality-gate-action@v1
+      #   timeout-minutes: 5
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #     SONAR_HOST_URL: "http://18.227.24.102:9000"
+
+      # 3. Install Docker (if needed on runner)
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install docker.io -y
 
-      # 3. Login to DockerHub using token
+      # 4. Login to DockerHub
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 4. Check Docker version (test step)
+      # 5. Test Docker engine
       - name: Run tests
         run: docker --version
+
