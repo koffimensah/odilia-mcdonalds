@@ -9,26 +9,32 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # 1️⃣ Checkout repository
+      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Install dependencies and check Docker Compose plugin
+      # 2️⃣ Install dependencies
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y docker.io unzip curl
           docker --version
-          docker compose version || true
 
-      # 3️⃣ DockerHub login
+      # 3️⃣ Install legacy docker-compose
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose version
+
+      # 4️⃣ DockerHub login
       - name: DockerHub Login
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 4️⃣ SonarQube Scan with Quality Gate wait
+      # 5️⃣ SonarQube Scan
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
         with:
@@ -39,16 +45,16 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_SCANNER_OPTS: "-X"
 
-      # 5️⃣ Pull only custom Docker images (your services)
+      # 6️⃣ Pull only custom images
       - name: Pull Custom Docker Images
         run: |
           docker pull mreferre/yelb-ui:0.7
           docker pull mreferre/yelb-appserver:0.5
 
-      # 6️⃣ Deploy using Docker Compose plugin
+      # 7️⃣ Deploy services
       - name: Deploy with Docker Compose
-        run: docker compose up --detach
+        run: docker-compose up -d
 
-      # 7️⃣ Optional: Smoke Test
+      # 8️⃣ Optional Smoke Test
       - name: Smoke Test
         run: curl -f http://localhost/ || exit 1
