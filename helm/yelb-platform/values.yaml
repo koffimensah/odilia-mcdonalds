@@ -1,0 +1,59 @@
+# Umbrella-global overrides; these will be passed to subcharts under the release name.
+global:
+  redis:
+    password: "a-very-complex-password-here"
+  postgres:
+    username: "postgres"
+    password: "postgres"    # change for production
+    database: "votes"
+
+# Example per-subchart overrides:
+yelb-ui:
+  replicaCount: 1
+  image:
+    repository: mreferre/yelb-ui
+    tag: "0.7"
+
+yelb-appserver:
+  replicaCount: 1
+  image:
+    repository: mreferre/yelb-appserver
+    tag: "0.5"
+
+redis-master:
+  replicas: 1
+  persistence:
+    size: 1Gi
+  image:
+    repository: redis
+    tag: "4.0.2"
+
+redis-replicas:
+  replicas: 2
+  persistence:
+    size: 1Gi
+  image:
+    repository: redis
+    tag: "4.0.2"
+
+redis-sentinel:
+  replicas: 3
+  image:
+    repository: redis
+    tag: "4.0.2"
+
+postgres-primary:
+  replicas: 1
+  image:
+    repository: mreferre/yelb-db
+    tag: "0.5"
+  persistence:
+    size: 2Gi
+
+postgres-replicas:
+  replicas: 3
+  image:
+    repository: mreferre/yelb-db
+    tag: "0.5"
+  persistence:
+    size: 2Gi

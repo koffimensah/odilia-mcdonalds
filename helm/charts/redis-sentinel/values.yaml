@@ -1,0 +1,4 @@
+replicas: 3
+image:
+  repository: redis
+  tag: "4.0.2"

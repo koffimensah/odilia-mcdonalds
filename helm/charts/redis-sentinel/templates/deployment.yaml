@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yelb.fullname" . }}-redis-sentinel
+  labels:
+    app: redis-sentinel
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: redis-sentinel
+  template:
+    metadata:
+      labels:
+        app: redis-sentinel
+    spec:
+      containers:
+        - name: redis-sentinel
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              cat /etc/redis/sentinel.conf && redis-sentinel /etc/redis/sentinel.conf
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/redis
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-global-secrets
+                  key: redis_password
+      volumes:
+        - name: conf
+          configMap:
+            name: {{ include "yelb.fullname" . }}-redis-sentinel-conf
+            items:
+              - key: sentinel.conf
+                path: sentinel.conf

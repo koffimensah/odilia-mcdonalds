@@ -1,0 +1,6 @@
+replicas: 2
+image:
+  repository: redis
+  tag: "4.0.2"
+persistence:
+  size: 1Gi

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yelb.fullname" . }}-yelb-appserver
+  labels:
+    app: yelb-appserver
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: yelb-appserver
+  template:
+    metadata:
+      labels:
+        app: yelb-appserver
+    spec:
+      containers:
+        - name: yelb-appserver
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: REDIS_SERVER
+              value: "{{ include "yelb.fullname" . }}-redis-headless"
+            - name: DB_SERVER
+              value: "{{ include "yelb.fullname" . }}-db-headless"

@@ -1,0 +1,6 @@
+replicas: 1
+image:
+  repository: mreferre/yelb-db
+  tag: "0.5"
+persistence:
+  size: 2Gi

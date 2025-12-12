@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "yelb.fullname" . }}-yelb-appserver
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: yelb-appserver
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}

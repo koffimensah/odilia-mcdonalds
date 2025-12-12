@@ -1,0 +1,8 @@
+replicaCount: 1
+image:
+  repository: mreferre/yelb-appserver
+  tag: "0.5"
+service:
+  port: 4567
+  type: ClusterIP
+env: {}

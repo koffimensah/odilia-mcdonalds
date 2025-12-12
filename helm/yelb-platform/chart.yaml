@@ -1,0 +1,28 @@
+apiVersion: v2
+name: yelb-platform
+description: Umbrella chart to deploy the entire YELB platform
+type: application
+version: 1.0.0
+appVersion: "1.0"
+dependencies:
+  - name: yelb-ui
+    version: 1.0.0
+    repository: file://../charts/yelb-ui
+  - name: yelb-appserver
+    version: 1.0.0
+    repository: file://../charts/yelb-appserver
+  - name: redis-master
+    version: 1.0.0
+    repository: file://../charts/redis-master
+  - name: redis-replicas
+    version: 1.0.0
+    repository: file://../charts/redis-replicas
+  - name: redis-sentinel
+    version: 1.0.0
+    repository: file://../charts/redis-sentinel
+  - name: postgres-primary
+    version: 1.0.0
+    repository: file://../charts/postgres-primary
+  - name: postgres-replicas
+    version: 1.0.0
+    repository: file://../charts/postgres-replicas
