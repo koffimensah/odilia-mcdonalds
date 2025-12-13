@@ -1,6 +1,0 @@
-apiVersion: v2
-name: redis-replicas
-description: Redis replica StatefulSet(s)
-type: application
-version: 1.0.0
-appVersion: "4.0.2"

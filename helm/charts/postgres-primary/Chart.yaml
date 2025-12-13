@@ -1,6 +1,0 @@
-apiVersion: v2
-name: postgres-primary
-description: PostgreSQL primary StatefulSet
-type: application
-version: 1.0.0
-appVersion: "15"

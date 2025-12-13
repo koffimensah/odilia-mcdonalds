@@ -1,6 +1,0 @@
-apiVersion: v2
-name: redis-master
-description: Redis master StatefulSet
-type: application
-version: 1.0.0
-appVersion: "4.0.2"

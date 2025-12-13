@@ -1,6 +1,0 @@
-apiVersion: v2
-name: yelb-appserver
-description: YELB appserver (API)
-type: application
-version: 1.0.0
-appVersion: "0.5"

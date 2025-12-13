@@ -1,7 +1,0 @@
-YELB platform installed.
-
-To access UI:
-  kubectl port-forward svc/{{ .Release.Name }}-yelb-ui 8080:80
-
-To uninstall:
-  helm uninstall {{ .Release.Name }}

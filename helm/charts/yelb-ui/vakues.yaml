@@ -1,9 +1,0 @@
-replicaCount: 1
-image:
-  repository: mreferre/yelb-ui
-  tag: "0.7"
-service:
-  port: 80
-  type: NodePort
-  nodePort: 30080
-env: {}
