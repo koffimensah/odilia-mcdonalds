@@ -1,0 +1,24 @@
+dependencies:
+- name: yelb-ui
+  repository: file://../charts/yelb-ui
+  version: 1.0.0
+- name: yelb-appserver
+  repository: file://../charts/yelb-appserver
+  version: 1.0.0
+- name: redis-master
+  repository: file://../charts/redis-master
+  version: 1.0.0
+- name: redis-replicas
+  repository: file://../charts/redis-replicas
+  version: 1.0.0
+- name: redis-sentinel
+  repository: file://../charts/redis-sentinel
+  version: 1.0.0
+- name: postgres-primary
+  repository: file://../charts/postgres-primary
+  version: 1.0.0
+- name: postgres-replicas
+  repository: file://../charts/postgres-replicas
+  version: 1.0.0
+digest: sha256:467ae822c8b3e0eb61c00c2c101152a80c5d574508eeb12130c81c216c5b5f36
+generated: "2025-12-12T00:26:32.2702217-05:00"
