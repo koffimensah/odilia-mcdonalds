@@ -1,0 +1,178 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: odilia-mcdonalds
+
+---
+# Redis Master Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  namespace: odilia-mcdonalds
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+    role: master
+
+---
+# Redis Master Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-master
+  namespace: odilia-mcdonalds
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      role: master
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: master
+    spec:
+      containers:
+      - name: redis
+        image: redis:4.0.2
+        ports:
+        - containerPort: 6379
+        command:
+        - redis-server
+        - --protected-mode
+        - "no"
+        - --requirepass
+        - "change-me"
+        - --masterauth
+        - "change-me"
+
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-master
+  namespace: odilia-mcdonalds
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+    role: master
+
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-master
+  namespace: odilia-mcdonalds
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      role: master
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: master
+    spec:
+      containers:
+      - name: postgres
+        image: mreferre/yelb-db:0.5
+        ports:
+        - containerPort: 5432
+
+---
+# App Server Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: appserver
+  namespace: odilia-mcdonalds
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4567
+      targetPort: 4567
+  selector:
+    app: appserver
+
+---
+# App Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appserver
+  namespace: odilia-mcdonalds
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: appserver
+  template:
+    metadata:
+      labels:
+        app: appserver
+    spec:
+      containers:
+      - name: appserver
+        image: mreferre/yelb-appserver:0.5
+        ports:
+        - containerPort: 4567
+        env:
+        - name: REDIS_SERVER
+          value: redis-master
+        - name: DB_SERVER
+          value: postgres-master
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: odilia-mcdonalds
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+  selector:
+    app: frontend
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: odilia-mcdonalds
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: mreferre/yelb-ui:0.7
+        ports:
+        - containerPort: 80
