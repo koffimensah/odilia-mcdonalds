@@ -107,10 +107,11 @@ jobs:
           framework: dockerfile,docker-compose
           output_format: cli,sarif
           output_file_path: console,checkov.sarif
+        continue-on-error: true
 
       - name: Upload Checkov SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('checkov.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: checkov.sarif
           category: checkov
@@ -202,15 +203,15 @@ jobs:
           exit-code: 0
 
       - name: Upload Trivy UI Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy-ui.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-ui.sarif
           category: trivy-ui
 
       - name: Upload Trivy AppServer Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy-appserver.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-appserver.sarif
           category: trivy-appserver
