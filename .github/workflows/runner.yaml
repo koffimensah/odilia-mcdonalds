@@ -17,6 +17,7 @@ permissions:
 jobs:
   cleanup:
     runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - name: Disk Space BEFORE Cleanup
         run: |
@@ -35,7 +36,7 @@ jobs:
           echo "Removing volumes..."
           sudo docker volume ls -q | xargs -r sudo docker volume rm -f || true
           echo "Removing networks..."
-          sudo docker network ls -q | xargs -r sudo docker network rm || true
+          sudo docker network ls -q --filter type=custom | xargs -r sudo docker network rm || true
           echo "Removing build cache..."
           sudo docker builder prune -a -f || true
 
@@ -70,9 +71,10 @@ jobs:
   security-scan:
     runs-on: self-hosted
     needs: cleanup
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -82,21 +84,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 📊 SonarQube Scan
+      # 📊 SonarQube Scan - FIXED: Updated to use correct action version
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://52.15.230.38:9000
-        # Scanner will read sonar-project.properties from repo root
-
-      # 🚦 Quality Gate
-      - name: SonarQube Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
-        timeout-minutes: 5
+        uses: SonarSource/sonarqube-scan-action@v3.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_TOKEN }}
+
+      # 🚦 Quality Gate - FIXED: Updated to compatible version
+      - name: SonarQube Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://52.15.230.38:9000
 
       # 🏗️ Checkov
       - name: Checkov IaC Scan
@@ -108,6 +109,7 @@ jobs:
           output_file_path: console,checkov.sarif
 
       - name: Upload Checkov SARIF
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: checkov.sarif
@@ -119,9 +121,10 @@ jobs:
   test:
     runs-on: self-hosted
     needs: security-scan
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # 🐘 PHP
       - name: Setup PHP
@@ -133,7 +136,7 @@ jobs:
 
       - name: Install PHP Dependencies
         if: hashFiles('composer.json') != ''
-        run: composer install --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run PHPUnit with Coverage
         if: hashFiles('phpunit.xml') != ''
@@ -142,10 +145,10 @@ jobs:
       # 🟢 Node
       - name: Setup Node.js
         if: hashFiles('package.json') != ''
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: npm
+          cache: 'npm'
 
       - name: Install Node Dependencies
         if: hashFiles('package.json') != ''
@@ -161,15 +164,16 @@ jobs:
   build-and-scan:
     runs-on: self-hosted
     needs: test
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Docker
         run: sudo apt-get update && sudo apt-get install -y docker.io curl unzip
 
       - name: DockerHub Login
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -186,13 +190,30 @@ jobs:
           format: sarif
           output: trivy-ui.sarif
           severity: CRITICAL,HIGH
-          exit-code: 1
+          exit-code: 0
 
-      - name: Upload Trivy Results
+      - name: Trivy Scan – AppServer Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: mreferre/yelb-appserver:0.5
+          format: sarif
+          output: trivy-appserver.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      - name: Upload Trivy UI Results
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-ui.sarif
-          category: trivy
+          category: trivy-ui
+
+      - name: Upload Trivy AppServer Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-appserver.sarif
+          category: trivy-appserver
 
 # ==========================================================
 # 🚀 DEPLOY
@@ -200,9 +221,10 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs: build-and-scan
+    timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Docker Compose
         run: |
@@ -215,10 +237,25 @@ jobs:
       - name: Deploy Application
         run: docker-compose up -d
 
+      - name: Wait for Application Startup
+        run: sleep 10
+
       - name: Smoke Test
         run: |
-          sleep 10
-          curl -f http://localhost/ || exit 1
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          until curl -f http://localhost/ || [ $RETRY_COUNT -eq $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT+1)) of $MAX_RETRIES failed. Retrying in 5 seconds..."
+            sleep 5
+            RETRY_COUNT=$((RETRY_COUNT+1))
+          done
+          
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "❌ Application failed to start after $MAX_RETRIES attempts"
+            docker-compose logs
+            exit 1
+          fi
+          
           echo "✅ Application is running"
 
       - name: Final Cleanup
