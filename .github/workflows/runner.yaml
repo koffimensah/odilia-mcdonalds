@@ -6,8 +6,42 @@ on:
     branches: [main]
 
 jobs:
+  cleanup:
+    runs-on: self-hosted
+    steps:
+      # Check disk space before starting
+      - name: Check Disk Space
+        run: |
+          AVAILABLE=$(df / | tail -1 | awk '{print $4}')
+          echo "Available disk space: $AVAILABLE KB"
+          if [ $AVAILABLE -lt 5000000 ]; then
+            echo "Error: Less than 5GB available. Cleaning up..."
+          fi
+
+      # Clean up disk space before starting
+      - name: Clean up Docker and disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          docker system prune -a -f --volumes || true
+          sudo apt-get clean || true
+          echo "Disk space after cleanup:"
+          df -h
+      
+      # Verify sufficient space after cleanup
+      - name: Verify Disk Space After Cleanup
+        run: |
+          AVAILABLE=$(df / | tail -1 | awk '{print $4}')
+          echo "Available disk space after cleanup: $AVAILABLE KB"
+          if [ $AVAILABLE -lt 5000000 ]; then
+            echo "Error: Still less than 5GB available after cleanup!"
+            exit 1
+          fi
+          echo "✅ Sufficient disk space available"
+
   security-scan:
     runs-on: self-hosted
+    needs: cleanup
     steps:
       # 1️⃣ Checkout code
       - name: Checkout code
@@ -235,3 +269,13 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH'
           exit-code: '0'
+
+      # 9️⃣ Final cleanup
+      - name: Post-Deploy Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up old Docker resources..."
+          docker system prune -f
+          docker image prune -a -f --filter "until=24h"
+          echo "Final disk space:"
+          df -h
