@@ -16,7 +16,7 @@ permissions:
 # # ==========================================================
 # jobs:
 #   cleanup:
-#     runs-on: self-hosted
+    runs-on: self-hosted
 #     steps:
 #       - name: Check Disk Space
 #         run: |
@@ -48,7 +48,7 @@ permissions:
 # ==========================================================
   security-scan:
     runs-on: self-hosted
-    needs: cleanup
+    # needs: cleanup
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
