@@ -1,13 +1,103 @@
-name: CI/CD Pipeline - odilia-msdonalds
-
+name: CI/CD Pipeline - odilia-msdonalds (Security Enhanced)
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  deploy:
+  security-scan:
     runs-on: self-hosted
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for Gitleaks
 
+      # 2️⃣ Gitleaks - Secret Scanning
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 3️⃣ SonarQube - Code Quality & SAST
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          projectBaseDir: .
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_SCANNER_OPTS: "-X"
+
+      - name: SonarQube Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      # 4️⃣ Checkov - IaC Security Scanning
+      - name: Checkov IaC Security Scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: dockerfile,docker-compose
+          output_format: cli,sarif
+          output_file_path: console,checkov-results.sarif
+          soft_fail: false
+
+      - name: Upload Checkov SARIF Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: checkov-results.sarif
+          category: checkov
+
+  test:
+    runs-on: self-hosted
+    needs: security-scan
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2️⃣ Setup PHP for PHPUnit
+      - name: Setup PHP
+        if: hashFiles('phpunit.xml') != ''
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer, phpunit
+
+      - name: Install PHP Dependencies
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run PHPUnit Tests
+        if: hashFiles('phpunit.xml') != ''
+        run: vendor/bin/phpunit --coverage-text
+
+      # 3️⃣ Setup Node.js for Jest
+      - name: Setup Node.js
+        if: hashFiles('package.json') != ''
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        if: hashFiles('package.json') != ''
+        run: npm ci
+
+      - name: Run Jest Tests
+        if: hashFiles('package.json') != ''
+        run: npm test -- --coverage
+
+  build-and-scan:
+    runs-on: self-hosted
+    needs: test
     steps:
       # 1️⃣ Checkout code
       - name: Checkout code
@@ -20,7 +110,7 @@ jobs:
           sudo apt-get install -y docker.io unzip curl
           docker --version
 
-      # 3️⃣ Install legacy docker-compose
+      # 3️⃣ Install Docker Compose
       - name: Install Docker Compose
         run: |
           sudo curl -L "https://github.com/docker/compose/releases/download/v2.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -34,27 +124,114 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 5️⃣ SonarQube Scan
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        with:
-          projectBaseDir: .
-          waitForQualityGate: true
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_SCANNER_OPTS: "-X"
-
-      # 6️⃣ Pull only custom images
+      # 5️⃣ Pull custom images
       - name: Pull Custom Docker Images
         run: |
           docker pull mreferre/yelb-ui:0.7
           docker pull mreferre/yelb-appserver:0.5
 
-      # 7️⃣ Deploy services
+      # 6️⃣ Trivy - Scan Docker Images for Vulnerabilities
+      - name: Run Trivy vulnerability scanner on yelb-ui
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mreferre/yelb-ui:0.7'
+          format: 'sarif'
+          output: 'trivy-ui-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Upload Trivy UI Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-ui-results.sarif'
+          category: 'trivy-ui'
+
+      - name: Run Trivy vulnerability scanner on yelb-appserver
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mreferre/yelb-appserver:0.5'
+          format: 'sarif'
+          output: 'trivy-app-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Upload Trivy Appserver Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-app-results.sarif'
+          category: 'trivy-appserver'
+
+      # 7️⃣ Trivy - Scan Filesystem
+      - name: Run Trivy filesystem scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy Filesystem Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+          category: 'trivy-filesystem'
+
+  deploy:
+    runs-on: self-hosted
+    needs: build-and-scan
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2️⃣ Install Docker Compose
+      - name: Install Docker Compose
+        run: |
+          if ! command -v docker-compose &> /dev/null; then
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+          docker-compose version
+
+      # 3️⃣ DockerHub login
+      - name: DockerHub Login
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 4️⃣ Pull images
+      - name: Pull Custom Docker Images
+        run: |
+          docker pull mreferre/yelb-ui:0.7
+          docker pull mreferre/yelb-appserver:0.5
+
+      # 5️⃣ Deploy services
       - name: Deploy with Docker Compose
         run: docker-compose up -d
 
-      # 8️⃣ Optional Smoke Test
+      # 6️⃣ Wait for services to start
+      - name: Wait for Services
+        run: sleep 10
+
+      # 7️⃣ Smoke Test
       - name: Smoke Test
-        run: curl -f http://localhost/ || exit 1
+        run: |
+          curl -f http://localhost/ || exit 1
+          echo "✅ Deployment successful and application is responding"
+
+      # 8️⃣ Post-deployment Trivy scan
+      - name: Post-Deployment Container Scan
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          image-ref: 'mreferre/yelb-ui:0.7'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
