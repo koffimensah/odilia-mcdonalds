@@ -28,19 +28,14 @@ jobs:
         run: |
           echo "Stopping containers..."
           sudo docker ps -aq | xargs -r sudo docker stop || true
-
           echo "Removing containers..."
           sudo docker ps -aq | xargs -r sudo docker rm -f || true
-
           echo "Removing images..."
           sudo docker images -aq | xargs -r sudo docker rmi -f || true
-
           echo "Removing volumes..."
           sudo docker volume ls -q | xargs -r sudo docker volume rm -f || true
-
           echo "Removing networks..."
           sudo docker network ls -q | xargs -r sudo docker network rm || true
-
           echo "Removing build cache..."
           sudo docker builder prune -a -f || true
 
@@ -63,7 +58,6 @@ jobs:
         run: |
           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
           echo "Available disk space: $AVAILABLE KB"
-
           if [ "$AVAILABLE" -lt 1000000 ]; then
             echo "⚠️ WARNING: Less than 1GB free, continuing anyway"
           else
@@ -93,7 +87,9 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        # Optional: enable verbose debug logs
+        # with:
+        #   args: -X
 
       # 🚦 Quality Gate
       - name: SonarQube Quality Gate
@@ -101,7 +97,6 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       # 🏗️ Checkov
       - name: Checkov IaC Scan
