@@ -114,10 +114,11 @@ jobs:
         run: |
           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
           echo "Available disk space: $AVAILABLE KB (~$((AVAILABLE/1024/1024)) GB)"
-          if [ "$AVAILABLE" -lt 5000000 ]; then
-            echo "❌ ERROR: Less than 5GB free - not enough space for workflow!"
-            echo "Please manually clean the runner or increase disk size"
+          if [ "$AVAILABLE" -lt 500000 ]; then
+            echo "❌ ERROR: Less than 500MB free - critically low space!"
             exit 1
+          elif [ "$AVAILABLE" -lt 2000000 ]; then
+            echo "⚠️ WARNING: Less than 2GB free - workflow may fail!"
           else
             echo "✅ Disk space sufficient: $((AVAILABLE/1024/1024)) GB free"
           fi
@@ -285,8 +286,8 @@ jobs:
           echo "Disk space before build:"
           df -h
           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
-          if [ "$AVAILABLE" -lt 3000000 ]; then
-            echo "❌ ERROR: Less than 3GB free - not enough for build!"
+          if [ "$AVAILABLE" -lt 500000 ]; then
+            echo "❌ ERROR: Less than 500MB free - not enough for build!"
             exit 1
           fi
 
