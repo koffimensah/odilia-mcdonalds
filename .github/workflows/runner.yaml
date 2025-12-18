@@ -33,33 +33,36 @@ jobs:
             sudo systemctl start docker || true
           fi
           
+          # Fix Docker socket permissions
+          sudo chmod 666 /var/run/docker.sock
+          
           # Add current user to docker group
           sudo usermod -aG docker $USER || true
           
           # Wait for Docker to be ready
           sleep 5
-          sudo docker --version
+          docker --version
           
       - name: Disk Space BEFORE Cleanup
         run: |
           echo "===== DISK BEFORE CLEANUP ====="
           df -h
-          sudo docker system df || true
+          docker system df || true
 
       - name: 🚨 Remove ALL Docker containers, images, volumes
         run: |
           echo "Stopping containers..."
-          sudo docker ps -aq | xargs -r sudo docker stop || true
+          docker ps -aq | xargs -r docker stop || true
           echo "Removing containers..."
-          sudo docker ps -aq | xargs -r sudo docker rm -f || true
+          docker ps -aq | xargs -r docker rm -f || true
           echo "Removing images..."
-          sudo docker images -aq | xargs -r sudo docker rmi -f || true
+          docker images -aq | xargs -r docker rmi -f || true
           echo "Removing volumes..."
-          sudo docker volume ls -q | xargs -r sudo docker volume rm -f || true
+          docker volume ls -q | xargs -r docker volume rm -f || true
           echo "Removing networks..."
-          sudo docker network ls -q --filter type=custom | xargs -r sudo docker network rm || true
+          docker network ls -q --filter type=custom | xargs -r docker network rm || true
           echo "Removing build cache..."
-          sudo docker builder prune -a -f || true
+          docker builder prune -a -f || true
 
       - name: 🧹 System Cleanup
         run: |
@@ -244,10 +247,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Ensure Docker is Running
+      - name: Fix Docker Permissions
         run: |
           sudo systemctl start docker || true
+          sudo chmod 666 /var/run/docker.sock
           sleep 3
+          docker ps
           
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -309,7 +314,9 @@ jobs:
       - name: Ensure Docker is Running
         run: |
           sudo systemctl start docker || true
+          sudo chmod 666 /var/run/docker.sock
           sleep 3
+          docker ps
 
       - name: Install Docker Compose
         run: |
@@ -353,4 +360,4 @@ jobs:
 
       - name: Final Cleanup
         if: always()
-        run: sudo docker system prune -f
+        run: docker system prune -f
