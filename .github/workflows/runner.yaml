@@ -1,4 +1,5 @@
-name: CI/CD Pipeline - odilia-msdonalds (Security Enhanced)
+name: CI/CD Pipeline - odilia-mcdonalds (Security Enhanced)
+
 on:
   push:
     branches: [main]
@@ -10,112 +11,97 @@ permissions:
   security-events: write
   actions: read
 
+# ==========================================================
+# 🧹 CLEANUP JOB (SELF-HOSTED DISK SAFETY)
+# ==========================================================
 jobs:
   cleanup:
     runs-on: self-hosted
     steps:
-      # Check disk space before starting
       - name: Check Disk Space
         run: |
           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
           echo "Available disk space: $AVAILABLE KB"
-          if [ $AVAILABLE -lt 5000000 ]; then
-            echo "Error: Less than 5GB available. Cleaning up..."
-          fi
 
-      # Clean up disk space before starting
-      - name: Clean up Docker and disk space
+      - name: Cleanup system & Docker
         run: |
-          echo "Disk space before cleanup:"
           df -h
-          
-          # Aggressive cleanup for low-disk environments
           sudo docker system prune -a -f --volumes || true
           sudo apt-get clean || true
           sudo apt-get autoclean || true
           sudo rm -rf /tmp/* || true
-          sudo rm -rf /home/ubuntu/actions-runner/_work/_temp/* || true
-          sudo rm -rf /home/ubuntu/actions-runner/_work/_tool/*/x64 || true
-          
-          # Remove old logs
           sudo journalctl --rotate
           sudo journalctl --vacuum-time=1d
-          
-          echo "Disk space after cleanup:"
           df -h
-      
-      # Verify sufficient space after cleanup
-      - name: Verify Disk Space After Cleanup
+
+      - name: Verify Disk Space
         run: |
           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
-          echo "Available disk space after cleanup: $AVAILABLE KB"
           if [ $AVAILABLE -lt 1500000 ]; then
-            echo "Error: Less than 1.5GB available after cleanup!"
-            echo "Please increase your runner's disk size or free up more space manually"
+            echo "❌ Not enough disk space"
             exit 1
           fi
-          echo "✅ Sufficient disk space available (>1.5GB)"
+          echo "✅ Disk space OK"
 
+# ==========================================================
+# 🔐 SECURITY SCANS (GITLEAKS + SONAR + CHECKOV)
+# ==========================================================
   security-scan:
     runs-on: self-hosted
     needs: cleanup
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Full history for Gitleaks
+          fetch-depth: 0
 
-      # 2️⃣ Gitleaks - Secret Scanning
+      # 🔑 Gitleaks – Secrets scanning
       - name: Gitleaks Secret Scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # # 3️⃣ SonarQube - Code Quality & SAST
-      # - name: SonarQube Scan
-      #   uses: SonarSource/sonarqube-scan-action@v6
-      #   with:
-      #     projectBaseDir: .
-      #   env:
-      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     SONAR_SCANNER_OPTS: "-X"
+      # 📊 SonarQube – uses sonar-project.properties
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # - name: SonarQube Quality Gate
-      #   uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
-      #   timeout-minutes: 5
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      # 🚦 Quality Gate (blocks pipeline)
+      - name: SonarQube Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # 4️⃣ Checkov - IaC Security Scanning
-      - name: Checkov IaC Security Scan
+      # 🏗️ Checkov – IaC Security
+      - name: Checkov Scan
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: .
           framework: dockerfile,docker-compose
           output_format: cli,sarif
-          output_file_path: console,checkov-results.sarif
-          soft_fail: false
+          output_file_path: console,checkov.sarif
 
-      - name: Upload Checkov SARIF Results
-        if: success() || failure()
+      - name: Upload Checkov SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: checkov-results.sarif
+          sarif_file: checkov.sarif
           category: checkov
-        continue-on-error: true
 
+# ==========================================================
+# 🧪 TESTS (PHP + NODE WITH COVERAGE)
+# ==========================================================
   test:
     runs-on: self-hosted
     needs: security-scan
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup PHP for PHPUnit
+      # 🐘 PHP
       - name: Setup PHP
         if: hashFiles('phpunit.xml') != ''
         uses: shivammathur/setup-php@v2
@@ -123,180 +109,96 @@ jobs:
           php-version: '8.2'
           tools: composer, phpunit
 
-      - name: Install PHP Dependencies
+      - name: Install PHP dependencies
         if: hashFiles('composer.json') != ''
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run PHPUnit Tests
+      - name: Run PHPUnit with Coverage
         if: hashFiles('phpunit.xml') != ''
-        run: vendor/bin/phpunit --coverage-text
+        run: vendor/bin/phpunit --coverage-clover coverage.xml
 
-      # 3️⃣ Setup Node.js for Jest
+      # 🟢 Node / Jest
       - name: Setup Node.js
         if: hashFiles('package.json') != ''
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          cache: 'npm'
+          cache: npm
 
-      - name: Install Node Dependencies
+      - name: Install Node dependencies
         if: hashFiles('package.json') != ''
         run: npm ci
 
-      - name: Run Jest Tests
+      - name: Run Jest with Coverage
         if: hashFiles('package.json') != ''
         run: npm test -- --coverage
 
+# ==========================================================
+# 🐳 BUILD & IMAGE SECURITY (TRIVY)
+# ==========================================================
   build-and-scan:
     runs-on: self-hosted
     needs: test
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Install dependencies
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker.io unzip curl
-          docker --version
+      - name: Install Docker
+        run: sudo apt-get update && sudo apt-get install -y docker.io curl unzip
 
-      # 3️⃣ Install Docker Compose
-      - name: Install Docker Compose
-        run: |
-          sudo curl -L "https://github.com/docker/compose/releases/download/v2.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          docker-compose version
-
-      # 4️⃣ DockerHub login
       - name: DockerHub Login
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 5️⃣ Pull custom images
-      - name: Pull Custom Docker Images
+      - name: Pull Images
         run: |
           docker pull mreferre/yelb-ui:0.7
           docker pull mreferre/yelb-appserver:0.5
 
-      # 6️⃣ Trivy - Scan Docker Images for Vulnerabilities
-      - name: Run Trivy vulnerability scanner on yelb-ui
+      - name: Trivy Scan – UI Image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'mreferre/yelb-ui:0.7'
-          format: 'sarif'
-          output: 'trivy-ui-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          image-ref: mreferre/yelb-ui:0.7
+          format: sarif
+          output: trivy-ui.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1
 
-      - name: Upload Trivy UI Results
-        if: success() || failure()
+      - name: Upload Trivy Results
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-ui-results.sarif'
-          category: 'trivy-ui'
-        continue-on-error: true
+          sarif_file: trivy-ui.sarif
+          category: trivy
 
-      - name: Run Trivy vulnerability scanner on yelb-appserver
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'mreferre/yelb-appserver:0.5'
-          format: 'sarif'
-          output: 'trivy-app-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-
-      - name: Upload Trivy Appserver Results
-        if: success() || failure()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-app-results.sarif'
-          category: 'trivy-appserver'
-        continue-on-error: true
-
-      # 7️⃣ Trivy - Scan Filesystem
-      - name: Run Trivy filesystem scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-fs-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
-
-      - name: Upload Trivy Filesystem Results
-        if: success() || failure()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-fs-results.sarif'
-          category: 'trivy-filesystem'
-        continue-on-error: true
-
+# ==========================================================
+# 🚀 DEPLOY (DOCKER COMPOSE)
+# ==========================================================
   deploy:
     runs-on: self-hosted
     needs: build-and-scan
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Install Docker Compose
       - name: Install Docker Compose
         run: |
           if ! command -v docker-compose &> /dev/null; then
-            sudo curl -L "https://github.com/docker/compose/releases/download/v2.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo curl -L https://github.com/docker/compose/releases/download/v2.22.0/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
           fi
           docker-compose version
 
-      # 3️⃣ DockerHub login
-      - name: DockerHub Login
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # 4️⃣ Pull images
-      - name: Pull Custom Docker Images
-        run: |
-          docker pull mreferre/yelb-ui:0.7
-          docker pull mreferre/yelb-appserver:0.5
-
-      # 5️⃣ Deploy services
-      - name: Deploy with Docker Compose
+      - name: Deploy Application
         run: docker-compose up -d
 
-      # 6️⃣ Wait for services to start
-      - name: Wait for Services
-        run: sleep 10
-
-      # 7️⃣ Smoke Test
       - name: Smoke Test
         run: |
+          sleep 10
           curl -f http://localhost/ || exit 1
-          echo "✅ Deployment successful and application is responding"
+          echo "✅ Application is running"
 
-      # 8️⃣ Post-deployment Trivy scan
-      - name: Post-Deployment Container Scan
+      - name: Final Cleanup
         if: always()
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'image'
-          image-ref: 'mreferre/yelb-ui:0.7'
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
-
-      # 9️⃣ Final cleanup
-      - name: Post-Deploy Cleanup
-        if: always()
-        run: |
-          echo "Cleaning up old Docker resources..."
-          sudo docker system prune -f
-          sudo docker image prune -a -f --filter "until=24h"
-          echo "Final disk space:"
-          df -h
+        run: sudo docker system prune -f
