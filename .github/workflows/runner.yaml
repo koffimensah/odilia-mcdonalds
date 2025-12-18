@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   cleanup:
     runs-on: self-hosted
@@ -95,11 +100,12 @@ jobs:
           soft_fail: false
 
       - name: Upload Checkov SARIF Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v2
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: checkov-results.sarif
           category: checkov
+        continue-on-error: true
 
   test:
     runs-on: self-hosted
@@ -187,11 +193,12 @@ jobs:
           exit-code: '1'
 
       - name: Upload Trivy UI Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v2
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-ui-results.sarif'
           category: 'trivy-ui'
+        continue-on-error: true
 
       - name: Run Trivy vulnerability scanner on yelb-appserver
         uses: aquasecurity/trivy-action@master
@@ -203,11 +210,12 @@ jobs:
           exit-code: '1'
 
       - name: Upload Trivy Appserver Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v2
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-app-results.sarif'
           category: 'trivy-appserver'
+        continue-on-error: true
 
       # 7️⃣ Trivy - Scan Filesystem
       - name: Run Trivy filesystem scanner
@@ -221,11 +229,12 @@ jobs:
           exit-code: '0'
 
       - name: Upload Trivy Filesystem Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v2
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-fs-results.sarif'
           category: 'trivy-filesystem'
+        continue-on-error: true
 
   deploy:
     runs-on: self-hosted
