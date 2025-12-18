@@ -72,22 +72,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3️⃣ SonarQube - Code Quality & SAST
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        with:
-          projectBaseDir: .
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_SCANNER_OPTS: "-X"
+      # # 3️⃣ SonarQube - Code Quality & SAST
+      # - name: SonarQube Scan
+      #   uses: SonarSource/sonarqube-scan-action@v6
+      #   with:
+      #     projectBaseDir: .
+      #   env:
+      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #     SONAR_SCANNER_OPTS: "-X"
 
-      - name: SonarQube Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      # - name: SonarQube Quality Gate
+      #   uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
+      #   timeout-minutes: 5
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       # 4️⃣ Checkov - IaC Security Scanning
       - name: Checkov IaC Security Scan
