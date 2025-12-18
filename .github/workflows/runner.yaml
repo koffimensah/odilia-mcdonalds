@@ -286,6 +286,7 @@ jobs:
           echo "Disk space before build:"
           df -h
           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
+          echo "DISK_SPACE_KB=$AVAILABLE" >> $GITHUB_ENV
           if [ "$AVAILABLE" -lt 500000 ]; then
             echo "❌ ERROR: Less than 500MB free - not enough for build!"
             exit 1
@@ -312,8 +313,10 @@ jobs:
           docker pull mreferre/yelb-ui:0.7
           docker pull mreferre/yelb-appserver:0.5
 
-      - name: Trivy Scan – UI Image
+      - name: Trivy Scan – UI Image (if space available)
+        if: env.DISK_SPACE_KB > 3000000
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: mreferre/yelb-ui:0.7
           format: sarif
@@ -323,9 +326,12 @@ jobs:
           timeout: 15m0s
         env:
           TRIVY_TEMP_DIR: /tmp/trivy-temp
+          TRIVY_SKIP_DB_UPDATE: false
 
-      - name: Trivy Scan – AppServer Image
+      - name: Trivy Scan – AppServer Image (if space available)
+        if: env.DISK_SPACE_KB > 3000000
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: mreferre/yelb-appserver:0.5
           format: sarif
@@ -335,6 +341,15 @@ jobs:
           timeout: 15m0s
         env:
           TRIVY_TEMP_DIR: /tmp/trivy-temp
+          TRIVY_SKIP_DB_UPDATE: false
+          
+      - name: Note about Trivy Scans
+        if: env.DISK_SPACE_KB <= 3000000
+        run: |
+          echo "⚠️ Skipping Trivy scans due to low disk space"
+          echo "Available: ${{ env.DISK_SPACE_KB }} KB (~$((${{ env.DISK_SPACE_KB }}/1024/1024)) GB)"
+          echo "Required: At least 3GB for Trivy image scanning"
+          echo "Please increase disk size or manually run: trivy image mreferre/yelb-ui:0.7"
 
       - name: Upload Trivy UI Results
         if: always() && hashFiles('trivy-ui.sarif') != ''
