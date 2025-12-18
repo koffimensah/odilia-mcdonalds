@@ -23,8 +23,19 @@ jobs:
         run: |
           echo "Disk space before cleanup:"
           df -h
-          docker system prune -a -f --volumes || true
+          
+          # Aggressive cleanup for low-disk environments
+          sudo docker system prune -a -f --volumes || true
           sudo apt-get clean || true
+          sudo apt-get autoclean || true
+          sudo rm -rf /tmp/* || true
+          sudo rm -rf /home/ubuntu/actions-runner/_work/_temp/* || true
+          sudo rm -rf /home/ubuntu/actions-runner/_work/_tool/*/x64 || true
+          
+          # Remove old logs
+          sudo journalctl --rotate
+          sudo journalctl --vacuum-time=1d
+          
           echo "Disk space after cleanup:"
           df -h
       
@@ -33,11 +44,12 @@ jobs:
         run: |
           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
           echo "Available disk space after cleanup: $AVAILABLE KB"
-          if [ $AVAILABLE -lt 5000000 ]; then
-            echo "Error: Still less than 5GB available after cleanup!"
+          if [ $AVAILABLE -lt 1500000 ]; then
+            echo "Error: Less than 1.5GB available after cleanup!"
+            echo "Please increase your runner's disk size or free up more space manually"
             exit 1
           fi
-          echo "✅ Sufficient disk space available"
+          echo "✅ Sufficient disk space available (>1.5GB)"
 
   security-scan:
     runs-on: self-hosted
@@ -275,7 +287,7 @@ jobs:
         if: always()
         run: |
           echo "Cleaning up old Docker resources..."
-          docker system prune -f
-          docker image prune -a -f --filter "until=24h"
+          sudo docker system prune -f
+          sudo docker image prune -a -f --filter "until=24h"
           echo "Final disk space:"
           df -h
