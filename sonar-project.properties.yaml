@@ -1,4 +1,4 @@
 sonar.projectKey=odilia-msdonalds
 sonar.projectName=odilia-msdonalds
 sonar.sources=.
-sonar.host.url=http://52.15.230.38:9000
+# sonar.host.url=http://52.15.230.38:9000
