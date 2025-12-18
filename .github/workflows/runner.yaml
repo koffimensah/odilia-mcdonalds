@@ -11,37 +11,37 @@ permissions:
   security-events: write
   actions: read
 
-# ==========================================================
-# 🧹 CLEANUP JOB (SELF-HOSTED DISK SAFETY)
-# ==========================================================
-jobs:
-  cleanup:
-    runs-on: self-hosted
-    steps:
-      - name: Check Disk Space
-        run: |
-          AVAILABLE=$(df / | tail -1 | awk '{print $4}')
-          echo "Available disk space: $AVAILABLE KB"
+# # ==========================================================
+# # 🧹 CLEANUP JOB (SELF-HOSTED DISK SAFETY)
+# # ==========================================================
+# jobs:
+#   cleanup:
+#     runs-on: self-hosted
+#     steps:
+#       - name: Check Disk Space
+#         run: |
+#           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
+#           echo "Available disk space: $AVAILABLE KB"
 
-      - name: Cleanup system & Docker
-        run: |
-          df -h
-          sudo docker system prune -a -f --volumes || true
-          sudo apt-get clean || true
-          sudo apt-get autoclean || true
-          sudo rm -rf /tmp/* || true
-          sudo journalctl --rotate
-          sudo journalctl --vacuum-time=1d
-          df -h
+#       - name: Cleanup system & Docker
+#         run: |
+#           df -h
+#           sudo docker system prune -a -f --volumes || true
+#           sudo apt-get clean || true
+#           sudo apt-get autoclean || true
+#           sudo rm -rf /tmp/* || true
+#           sudo journalctl --rotate
+#           sudo journalctl --vacuum-time=1d
+#           df -h
 
-      - name: Verify Disk Space
-        run: |
-          AVAILABLE=$(df / | tail -1 | awk '{print $4}')
-          if [ $AVAILABLE -lt 1500000 ]; then
-            echo "❌ Not enough disk space"
-            exit 1
-          fi
-          echo "✅ Disk space OK"
+#       - name: Verify Disk Space
+#         run: |
+#           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
+#           if [ $AVAILABLE -lt 1500000 ]; then
+#             echo "❌ Not enough disk space"
+#             exit 1
+#           fi
+#           echo "✅ Disk space OK"
 
 # ==========================================================
 # 🔐 SECURITY SCANS (GITLEAKS + SONAR + CHECKOV)
