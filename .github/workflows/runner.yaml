@@ -82,14 +82,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 📊 SonarQube (uses sonar-project.properties)
+      # 📊 SonarQube Scan
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        # Optional: enable verbose debug logs
-        # with:
-        #   args: -X
+          SONAR_HOST_URL: http://52.15.230.38:9000
+        # Scanner will read sonar-project.properties from repo root
 
       # 🚦 Quality Gate
       - name: SonarQube Quality Gate
@@ -97,6 +96,7 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_TOKEN }}
 
       # 🏗️ Checkov
       - name: Checkov IaC Scan
