@@ -11,64 +11,91 @@ permissions:
   security-events: write
   actions: read
 
-# # ==========================================================
-# # 🧹 CLEANUP JOB (SELF-HOSTED DISK SAFETY)
-# # ==========================================================
-# jobs:
-#   cleanup:
+# ==========================================================
+# 🧹 CLEANUP JOB (AGGRESSIVE DOCKER WIPE)
+# ==========================================================
+jobs:
+  cleanup:
     runs-on: self-hosted
-#     steps:
-#       - name: Check Disk Space
-#         run: |
-#           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
-#           echo "Available disk space: $AVAILABLE KB"
+    steps:
+      - name: Disk Space BEFORE Cleanup
+        run: |
+          echo "===== DISK BEFORE CLEANUP ====="
+          df -h
+          docker system df || true
 
-#       - name: Cleanup system & Docker
-#         run: |
-#           df -h
-#           sudo docker system prune -a -f --volumes || true
-#           sudo apt-get clean || true
-#           sudo apt-get autoclean || true
-#           sudo rm -rf /tmp/* || true
-#           sudo journalctl --rotate
-#           sudo journalctl --vacuum-time=1d
-#           df -h
+      - name: 🚨 Remove ALL Docker containers, images, volumes
+        run: |
+          echo "Stopping containers..."
+          sudo docker ps -aq | xargs -r sudo docker stop || true
 
-#       - name: Verify Disk Space
-#         run: |
-#           AVAILABLE=$(df / | tail -1 | awk '{print $4}')
-#           if [ $AVAILABLE -lt 1500000 ]; then
-#             echo "❌ Not enough disk space"
-#             exit 1
-#           fi
-#           echo "✅ Disk space OK"
+          echo "Removing containers..."
+          sudo docker ps -aq | xargs -r sudo docker rm -f || true
+
+          echo "Removing images..."
+          sudo docker images -aq | xargs -r sudo docker rmi -f || true
+
+          echo "Removing volumes..."
+          sudo docker volume ls -q | xargs -r sudo docker volume rm -f || true
+
+          echo "Removing networks..."
+          sudo docker network ls -q | xargs -r sudo docker network rm || true
+
+          echo "Removing build cache..."
+          sudo docker builder prune -a -f || true
+
+      - name: 🧹 System Cleanup
+        run: |
+          sudo apt-get clean || true
+          sudo apt-get autoclean || true
+          sudo rm -rf /tmp/* || true
+          sudo rm -rf /home/ubuntu/actions-runner/_work/_temp/* || true
+          sudo journalctl --rotate || true
+          sudo journalctl --vacuum-time=1d || true
+
+      - name: Disk Space AFTER Cleanup
+        run: |
+          echo "===== DISK AFTER CLEANUP ====="
+          df -h
+          docker system df || true
+
+      - name: Verify Disk Space (soft check)
+        run: |
+          AVAILABLE=$(df / | tail -1 | awk '{print $4}')
+          echo "Available disk space: $AVAILABLE KB"
+
+          if [ "$AVAILABLE" -lt 1000000 ]; then
+            echo "⚠️ WARNING: Less than 1GB free, continuing anyway"
+          else
+            echo "✅ Disk space sufficient"
+          fi
 
 # ==========================================================
 # 🔐 SECURITY SCANS (GITLEAKS + SONAR + CHECKOV)
 # ==========================================================
   security-scan:
     runs-on: self-hosted
-    # needs: cleanup
+    needs: cleanup
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # 🔑 Gitleaks – Secrets scanning
+      # 🔑 Gitleaks
       - name: Gitleaks Secret Scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 📊 SonarQube – uses sonar-project.properties
+      # 📊 SonarQube (uses sonar-project.properties)
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # 🚦 Quality Gate (blocks pipeline)
+      # 🚦 Quality Gate
       - name: SonarQube Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
         timeout-minutes: 5
@@ -76,8 +103,8 @@ permissions:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # 🏗️ Checkov – IaC Security
-      - name: Checkov Scan
+      # 🏗️ Checkov
+      - name: Checkov IaC Scan
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: .
@@ -92,7 +119,7 @@ permissions:
           category: checkov
 
 # ==========================================================
-# 🧪 TESTS (PHP + NODE WITH COVERAGE)
+# 🧪 TESTS (PHP + NODE)
 # ==========================================================
   test:
     runs-on: self-hosted
@@ -109,7 +136,7 @@ permissions:
           php-version: '8.2'
           tools: composer, phpunit
 
-      - name: Install PHP dependencies
+      - name: Install PHP Dependencies
         if: hashFiles('composer.json') != ''
         run: composer install --no-interaction --prefer-dist
 
@@ -117,7 +144,7 @@ permissions:
         if: hashFiles('phpunit.xml') != ''
         run: vendor/bin/phpunit --coverage-clover coverage.xml
 
-      # 🟢 Node / Jest
+      # 🟢 Node
       - name: Setup Node.js
         if: hashFiles('package.json') != ''
         uses: actions/setup-node@v3
@@ -125,7 +152,7 @@ permissions:
           node-version: '18'
           cache: npm
 
-      - name: Install Node dependencies
+      - name: Install Node Dependencies
         if: hashFiles('package.json') != ''
         run: npm ci
 
@@ -173,7 +200,7 @@ permissions:
           category: trivy
 
 # ==========================================================
-# 🚀 DEPLOY (DOCKER COMPOSE)
+# 🚀 DEPLOY
 # ==========================================================
   deploy:
     runs-on: self-hosted
