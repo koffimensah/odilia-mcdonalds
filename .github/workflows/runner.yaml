@@ -366,7 +366,7 @@ jobs:
           category: trivy-appserver
 
 # ==========================================================
-# 🚀 DEPLOY
+# 🚀 DEPLOY (Docker Compose + ArgoCD Ready)
 # ==========================================================
   deploy:
     runs-on: self-hosted
@@ -376,6 +376,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ==========================================================
+      # DOCKER COMPOSE DEPLOYMENT (CURRENT)
+      # ==========================================================
       - name: Ensure Docker is Running
         run: |
           sudo systemctl start docker || true
@@ -385,7 +388,6 @@ jobs:
 
       - name: Install Docker Compose
         run: |
-          # Install Docker Compose if not present
           if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
             echo "Installing Docker Compose..."
             sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -394,7 +396,7 @@ jobs:
           fi
           docker-compose --version || docker compose version
 
-      - name: Deploy Application
+      - name: Deploy with Docker Compose
         run: |
           if command -v docker-compose &> /dev/null; then
             docker-compose up -d
@@ -417,11 +419,90 @@ jobs:
           
           if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
             echo "❌ Application failed to start after $MAX_RETRIES attempts"
-            docker-compose logs
+            docker-compose logs || docker compose logs
             exit 1
           fi
           
           echo "✅ Application is running"
+
+      # ==========================================================
+      # ARGOCD DEPLOYMENT (COMMENTED - ENABLE WHEN K8S IS READY)
+      # ==========================================================
+      # Uncomment these steps once you have:
+      # 1. Kubernetes cluster running
+      # 2. ArgoCD installed (kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml)
+      # 3. GitHub secrets configured: ARGOCD_SERVER, ARGOCD_AUTH_TOKEN
+      # 4. Kubernetes manifests in k8s/ directory
+      
+      # - name: Install ArgoCD CLI
+      #   run: |
+      #     if ! command -v argocd &> /dev/null; then
+      #       curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      #       sudo install -m 555 /tmp/argocd /usr/local/bin/argocd
+      #       rm /tmp/argocd
+      #     fi
+      #     argocd version --client
+
+      # - name: Login to ArgoCD
+      #   env:
+      #     ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+      #     ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+      #   run: |
+      #     argocd login $ARGOCD_SERVER \
+      #       --auth-token $ARGOCD_AUTH_TOKEN \
+      #       --insecure \
+      #       --grpc-web
+
+      # - name: Create/Update ArgoCD Application
+      #   env:
+      #     ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+      #     ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+      #   run: |
+      #     if argocd app get odilia-mcdonalds --auth-token $ARGOCD_AUTH_TOKEN --server $ARGOCD_SERVER --insecure 2>/dev/null; then
+      #       argocd app set odilia-mcdonalds \
+      #         --repo https://github.com/${{ github.repository }}.git \
+      #         --revision ${{ github.ref_name }} \
+      #         --path k8s \
+      #         --auth-token $ARGOCD_AUTH_TOKEN \
+      #         --server $ARGOCD_SERVER \
+      #         --insecure
+      #     else
+      #       argocd app create odilia-mcdonalds \
+      #         --repo https://github.com/${{ github.repository }}.git \
+      #         --revision ${{ github.ref_name }} \
+      #         --path k8s \
+      #         --dest-server https://kubernetes.default.svc \
+      #         --dest-namespace default \
+      #         --sync-policy automated \
+      #         --self-heal \
+      #         --auto-prune \
+      #         --auth-token $ARGOCD_AUTH_TOKEN \
+      #         --server $ARGOCD_SERVER \
+      #         --insecure
+      #     fi
+
+      # - name: Sync ArgoCD Application
+      #   env:
+      #     ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+      #     ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+      #   run: |
+      #     argocd app sync odilia-mcdonalds \
+      #       --auth-token $ARGOCD_AUTH_TOKEN \
+      #       --server $ARGOCD_SERVER \
+      #       --insecure \
+      #       --prune
+
+      # - name: Wait for Deployment
+      #   env:
+      #     ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+      #     ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+      #   run: |
+      #     argocd app wait odilia-mcdonalds \
+      #       --auth-token $ARGOCD_AUTH_TOKEN \
+      #       --server $ARGOCD_SERVER \
+      #       --insecure \
+      #       --health \
+      #       --timeout 300
 
       - name: Final Cleanup
         if: always()
